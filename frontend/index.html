@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>NOVA — AI Voice Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Animated background orbs -->
+  <div class="bg-orb orb1"></div>
+  <div class="bg-orb orb2"></div>
+  <div class="bg-orb orb3"></div>
+
+  <div class="app-wrapper">
+
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">
+        <div class="logo-icon">
+          <span class="logo-dot"></span>
+          <span class="logo-dot"></span>
+          <span class="logo-dot"></span>
+        </div>
+        <span class="logo-text">NOVA</span>
+      </div>
+      <div class="status-pill" id="statusPill">
+        <span class="status-dot"></span>
+        <span id="statusText">Ready</span>
+      </div>
+    </header>
+
+    <!-- Chat Area -->
+    <main class="chat-area" id="chat">
+      <!-- Welcome screen shown when no messages -->
+      <div class="welcome-screen" id="welcomeScreen">
+        <div class="welcome-orb">
+          <svg viewBox="0 0 100 100" class="wave-svg">
+            <defs>
+              <radialGradient id="wg" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#a78bfa"/>
+                <stop offset="100%" stop-color="#6366f1"/>
+              </radialGradient>
+            </defs>
+            <circle cx="50" cy="50" r="48" fill="url(#wg)" opacity="0.15"/>
+            <circle cx="50" cy="50" r="35" fill="url(#wg)" opacity="0.25"/>
+            <circle cx="50" cy="50" r="22" fill="url(#wg)" opacity="0.5"/>
+          </svg>
+          <div class="mic-icon-center">🤖</div>
+        </div>
+        <h2>How can I help you today?</h2>
+        <p>Tap the mic and start speaking, or type your message below.</p>
+        <div class="suggestion-chips">
+          <button class="chip" onclick="sendChip(this)">💡 Explain quantum computing</button>
+          <button class="chip" onclick="sendChip(this)">🌍 Tell me a fun fact</button>
+          <button class="chip" onclick="sendChip(this)">✍️ Write a short poem</button>
+          <button class="chip" onclick="sendChip(this)">🧮 Help me solve a problem</button>
+        </div>
+      </div>
+    </main>
+
+    <!-- Input Area -->
+    <footer class="input-area">
+      <div class="input-bar">
+        <textarea
+          id="textInput"
+          placeholder="Type a message..."
+          rows="1"
+          onkeydown="handleKey(event)"
+          oninput="autoResize(this)"
+        ></textarea>
+        <button class="send-btn" id="sendBtn" onclick="sendText()" title="Send message">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="22" y1="2" x2="11" y2="13"/>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+        </button>
+      </div>
+      <button class="mic-btn" id="micBtn" onclick="startListening()" title="Start voice input">
+        <div class="mic-rings">
+          <div class="ring ring1"></div>
+          <div class="ring ring2"></div>
+          <div class="ring ring3"></div>
+        </div>
+        <svg class="mic-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="23"/>
+          <line x1="8" y1="23" x2="16" y2="23"/>
+        </svg>
+      </button>
+    </footer>
+
+  </div>
+
+  <!-- Toast notification -->
+  <div class="toast" id="toast"></div>
+
+  <script src="script.js"></script>
+</body>
+</html>
