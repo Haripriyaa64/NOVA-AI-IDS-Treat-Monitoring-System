@@ -1,26 +1,28 @@
 <!DOCTYPE html>
 <html>
+
 <body>
-<h2>Signup</h2>
+    <h2>Signup</h2>
 
-<input id="email" placeholder="Email">
-<input id="password" type="password" placeholder="Password">
-<button onclick="signup()">Signup</button>
+    <input id="email" placeholder="Email">
+    <input id="password" type="password" placeholder="Password">
+    <button onclick="signup()">Signup</button>
 
-<script>
-async function signup() {
-    await fetch("http://127.0.0.1:8000/signup", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({
-            email: email.value,
-            password: password.value
-        })
-    });
+    <script>
+        async function signup() {
+            await fetch("https://nova-ai-voice-assistant.onrender.com", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    email: email.value,
+                    password: password.value
+                })
+            });
 
-    alert("Account created");
-    window.location = "login.html";
-}
-</script>
+            alert("Account created");
+            window.location = "login.html";
+        }
+    </script>
 </body>
+
 </html>

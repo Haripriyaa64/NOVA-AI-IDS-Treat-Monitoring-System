@@ -8,3 +8,4 @@ groq
 pydantic
 cryptography
 email-validator
+bcrypt
