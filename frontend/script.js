@@ -8,7 +8,7 @@
    ✅ User email display
 =========================== */
 
-const BACKEND_URL = "https://nova-ai-voice-assistant.onrender.com/";
+const BACKEND_URL = "https://nova-ai-voice-assistant.onrender.com";
 const TOKEN = localStorage.getItem("nova_token");
 const USER_EMAIL = localStorage.getItem("nova_email");
 
