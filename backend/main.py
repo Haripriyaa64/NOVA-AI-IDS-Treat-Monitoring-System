@@ -1,14 +1,15 @@
 """
 NOVA — AI Voice Assistant Backend
-main.py | FastAPI + Groq + JWT Auth
+main.py | FastAPI + Groq + JWT Auth + Chat History + FIXED CORS + Validation
 """
 
 import os
 import traceback
 from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from typing import List, Optional
+from sqlalchemy.orm import Session
 from groq import Groq
 from jose import JWTError
 from dotenv import load_dotenv
@@ -22,28 +23,28 @@ load_dotenv()
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 if not GROQ_API_KEY:
-    print("=" * 60)
-    print("ERROR: GROQ_API_KEY not found in environment!")
-    print("  Fix: Create a .env file with this line:")
-    print("  GROQ_API_KEY=your_actual_key_here")
-    print("=" * 60)
-    raise RuntimeError("GROQ_API_KEY missing. See above.")
-
-print(f"Groq API Key loaded: {GROQ_API_KEY[:8]}...{GROQ_API_KEY[-4:]}")
+    raise RuntimeError("GROQ_API_KEY missing in .env")
 
 client = Groq(api_key=GROQ_API_KEY)
 
-app = FastAPI(title="NOVA AI Backend", version="2.1")
+app = FastAPI(title="NOVA AI Backend", version="3.0")
 
 # Create DB tables on startup
 init_db()
 
-# ── CORS ──────────────────────────────────────────────────────────────────────
+# ── ✅ FIXED CORS - SPECIFIC ORIGINS ──────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://127.0.0.1:5500",
+        "http://localhost:5500",
+        "http://127.0.0.1:3000",
+        "http://localhost:3000",
+        "https://nova-ai-voice-assistant-jade.vercel.app",  # Your Vercel URL
+        "https://nova-ai-voice-assistant.onrender.com",     # Your Render URL
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -59,6 +60,7 @@ def get_db():
 def get_current_user(authorization: str = Header(None)):
     if not authorization:
         raise HTTPException(status_code=401, detail="Not logged in. Please login first.")
+
     try:
         token = authorization.replace("Bearer ", "").strip()
         payload = decode_token(token)
@@ -77,70 +79,72 @@ class LoginRequest(BaseModel):
     email: str
     password: str
 
-class Message(BaseModel):
-    role: str
-    content: str
-
 class ChatRequest(BaseModel):
     message: str
-    history: Optional[List[Message]] = []
+    session_id: Optional[int] = None
 
-# ── System Prompt ─────────────────────────────────────────────────────────────
-SYSTEM_PROMPT = """You are NOVA, a friendly, witty, and intelligent AI voice assistant.
-You answer clearly and concisely since your responses will be read aloud.
-Avoid using markdown, bullet points, or special characters in your responses.
-Keep answers conversational and natural-sounding.
+# ── SYSTEM PROMPT ──────────────────────────────────────────────────────────────
+SYSTEM_PROMPT = """You are NOVA, a smart, friendly AI voice assistant.
+Keep responses concise and natural — they will be read aloud.
+No markdown, no bullet points, no asterisks. Just clear conversational sentences.
 If you don't know something, say so honestly."""
 
-# ── Helper: map Groq errors to human-readable fixes ───────────────────────────
-def get_fix_hint(e: Exception) -> str:
-    msg = str(e).lower()
-    if "401" in msg or "invalid api key" in msg or "authentication" in msg:
-        return (
-            "Your API key is INVALID or EXPIRED. "
-            "Go to https://console.groq.com -> API Keys -> create a new one, "
-            "then update your .env file."
-        )
-    if "429" in msg or "rate limit" in msg or "quota" in msg:
-        return "You hit the rate limit. Wait 1 minute and try again."
-    if "model" in msg and ("not found" in msg or "does not exist" in msg):
-        return "Model name is wrong. Use: llama-3.1-8b-instant or llama-3.3-70b-versatile"
-    if "connection" in msg or "timeout" in msg:
-        return "Network issue — check your internet connection."
-    return f"Unknown error. Full message: {str(e)}"
-
-
 # ══════════════════════════════════════════════════════════════════════════════
-# AUTH ROUTES
+# ✅ FIXED AUTH ROUTES - WITH PASSWORD VALIDATION
 # ══════════════════════════════════════════════════════════════════════════════
 
 @app.post("/register")
-def register(data: RegisterRequest, db = Depends(get_db)):
+def register(data: RegisterRequest, db: Session = Depends(get_db)):
+    """
+    Creates a new user account.
+    ✅ VALIDATION: email, password length (6-72 chars), no duplicates
+    """
     if not data.email or not data.password:
         raise HTTPException(status_code=400, detail="Email and password are required.")
 
+    # ✅ CRITICAL: Validate password length for bcrypt compatibility
     if len(data.password) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters.")
+    
+    if len(data.password) > 72:
+        raise HTTPException(status_code=400, detail="Password must be less than 72 characters.")
+
+    # Validate email format
+    if "@" not in data.email or "." not in data.email:
+        raise HTTPException(status_code=400, detail="Please enter a valid email address.")
 
     existing = db.query(User).filter(User.email == data.email.lower()).first()
     if existing:
         raise HTTPException(status_code=400, detail="An account with this email already exists.")
 
-    user = User(
-        email    = data.email.lower().strip(),
-        password = hash_password(data.password)
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
+    try:
+        user = User(
+            email    = data.email.lower().strip(),
+            password = hash_password(data.password)
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
 
-    token = create_token(user.id, user.email)
-    return {"message": "Account created!", "token": token, "email": user.email}
+        token = create_token(user.id, user.email)
+        return {"message": "Account created!", "token": token, "email": user.email}
+    
+    except Exception as e:
+        db.rollback()
+        print(f"Registration error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Registration failed. Please try again.")
 
 
 @app.post("/login")
-def login(data: LoginRequest, db = Depends(get_db)):
-    user = db.query(User).filter(User.email == data.email.lower().strip()).first()
+def login(data: LoginRequest, db: Session = Depends(get_db)):
+    """
+    Verifies email + password.
+    Returns a JWT token the frontend stores in localStorage.
+    """
+    if not data.email or not data.password:
+        raise HTTPException(status_code=400, detail="Email and password are required.")
+
+    user = db.query(User).filter(User.email == data.email.lower()).first()
 
     if not user or not verify_password(data.password, user.password):
         raise HTTPException(status_code=401, detail="Incorrect email or password.")
@@ -150,30 +154,78 @@ def login(data: LoginRequest, db = Depends(get_db)):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# KEY TEST ROUTE
-# open http://127.0.0.1:8000/test-key in browser to verify your setup
+# SESSION ROUTES
 # ══════════════════════════════════════════════════════════════════════════════
 
-@app.get("/test-key")
-async def test_key():
-    try:
-        response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[{"role": "user", "content": "Say: API key works!"}],
-            max_tokens=20,
-        )
-        return {
-            "status": "SUCCESS",
-            "key_prefix": GROQ_API_KEY[:8] + "...",
-            "model_reply": response.choices[0].message.content,
-        }
-    except Exception as e:
-        return {
-            "status": "FAILED",
-            "error_type": type(e).__name__,
-            "error_message": str(e),
-            "fix": get_fix_hint(e),
-        }
+@app.post("/sessions/new")
+def new_session(
+    user_id: int = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Creates a new empty chat session."""
+    session = ChatSession(user_id=user_id, title="New Chat")
+    db.add(session)
+    db.commit()
+    db.refresh(session)
+    return {"session_id": session.id, "title": session.title}
+
+
+@app.get("/sessions")
+def list_sessions(
+    user_id: int = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Returns all chat sessions for the user, newest first."""
+    sessions = (
+        db.query(ChatSession)
+        .filter(ChatSession.user_id == user_id)
+        .order_by(ChatSession.created_at.desc())
+        .all()
+    )
+    return [{"id": s.id, "title": s.title, "created_at": str(s.created_at)} for s in sessions]
+
+
+@app.get("/sessions/{session_id}/messages")
+def get_session_messages(
+    session_id: int,
+    user_id: int = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Returns all messages in a session."""
+    session = db.query(ChatSession).filter(
+        ChatSession.id == session_id,
+        ChatSession.user_id == user_id
+    ).first()
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Chat session not found.")
+
+    messages = (
+        db.query(ChatMessage)
+        .filter(ChatMessage.session_id == session_id)
+        .order_by(ChatMessage.created_at.asc())
+        .all()
+    )
+    return [{"role": m.role, "content": m.content, "created_at": str(m.created_at)} for m in messages]
+
+
+@app.delete("/sessions/{session_id}")
+def delete_session(
+    session_id: int,
+    user_id: int = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Deletes a chat session and all its messages."""
+    session = db.query(ChatSession).filter(
+        ChatSession.id == session_id,
+        ChatSession.user_id == user_id
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found.")
+
+    db.delete(session)
+    db.commit()
+    return {"message": "Chat deleted."}
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -183,52 +235,80 @@ async def test_key():
 @app.post("/chat")
 async def chat(
     data: ChatRequest,
-    user_id: int = Depends(get_current_user)
+    user_id: int = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
+    """
+    Main chat endpoint with full auth + history + session management.
+    """
     user_input = data.message.strip()
-
     if not user_input:
         raise HTTPException(status_code=400, detail="Message cannot be empty.")
 
-    # Build messages: system + history + new message
+    # Get or create session
+    if data.session_id:
+        session = db.query(ChatSession).filter(
+            ChatSession.id == data.session_id,
+            ChatSession.user_id == user_id
+        ).first()
+        if not session:
+            raise HTTPException(status_code=404, detail="Chat session not found.")
+    else:
+        session = ChatSession(user_id=user_id, title="New Chat")
+        db.add(session)
+        db.commit()
+        db.refresh(session)
+
+    # Load previous messages from DB
+    past_messages = (
+        db.query(ChatMessage)
+        .filter(ChatMessage.session_id == session.id)
+        .order_by(ChatMessage.created_at.asc())
+        .all()
+    )
+
+    # Build Groq message list
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-
-    for msg in data.history[:-1]:
-        messages.append({"role": msg.role, "content": msg.content})
-
+    for m in past_messages:
+        messages.append({"role": m.role, "content": m.content})
     messages.append({"role": "user", "content": user_input})
 
-    print(f"\nUser [{user_id}]: {user_input}")
-    print(f"History turns included: {len(data.history)}")
+    print(f"\n[Session {session.id}] User: {user_input[:60]}")
 
+    # Call Groq
     try:
         response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model="llama3-8b-8192",
             messages=messages,
-            max_tokens=80,
-            temperature=0.3,
+            max_tokens=500,
+            temperature=0.8,
         )
-
         reply = response.choices[0].message.content.strip()
-        print(f"NOVA replied: {reply[:80]}...")
-        return {"reply": reply}
+        print(f"[Session {session.id}] NOVA: {reply[:60]}...")
 
     except Exception as e:
-        print("\n" + "=" * 60)
-        print("GROQ API ERROR:")
-        print(f"  Type    : {type(e).__name__}")
-        print(f"  Message : {str(e)}")
+        print("GROQ ERROR:", str(e))
         traceback.print_exc()
-        print("=" * 60)
+        raise HTTPException(status_code=500, detail=f"AI error: {str(e)}")
 
-        hint = get_fix_hint(e)
-        raise HTTPException(
-            status_code=500,
-            detail=f"{type(e).__name__}: {str(e)} | Fix: {hint}"
-        )
+    # Save messages to DB
+    db.add(ChatMessage(session_id=session.id, role="user",      content=user_input))
+    db.add(ChatMessage(session_id=session.id, role="assistant", content=reply))
+
+    # Auto-title from first message
+    if len(past_messages) == 0:
+        session.title = user_input[:40] + ("…" if len(user_input) > 40 else "")
+
+    db.commit()
+
+    return {
+        "reply":      reply,
+        "session_id": session.id,
+        "title":      session.title
+    }
 
 
 # ── Health Check ──────────────────────────────────────────────────────────────
 @app.get("/")
 def home():
-    return {"status": "NOVA backend is running", "version": "2.1"}
+    return {"status": "NOVA v3.0 running ✅ — Auth + Sessions + Chat History"}

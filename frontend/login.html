@@ -384,11 +384,22 @@
       </div>
       <div class="field">
         <label>Password <span style="font-size:0.72rem;color:var(--muted)">(min 6 chars)</span></label>
-        <input type="password" id="regPass" placeholder="••••••••" autocomplete="new-password" />
+        <input 
+  type="password" 
+  id="regPass" 
+  placeholder="••••••••" 
+  autocomplete="new-password"
+  maxlength="72"
+/>
       </div>
       <div class="field">
         <label>Confirm Password</label>
-        <input type="password" id="regPassConfirm" placeholder="••••••••" autocomplete="new-password"
+        <input 
+  type="password" 
+  id="regPassConfirm" 
+  placeholder="••••••••" 
+  autocomplete="new-password"
+  maxlength="72"
           onkeydown="if(event.key==='Enter') submitRegister()" />
       </div>
       <button class="btn-primary" id="registerBtn" onclick="submitRegister()">Create Account</button>
@@ -397,7 +408,11 @@
   </div>
 
   <script>
-    const API = "https://nova-ai-voice-assistant.onrender.com";
+    // Check if running locally or deployed
+const API = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+  ? "http://127.0.0.1:8000"
+  : "https://nova-ai-voice-assistant.onrender.com";
+
 
     // Already logged in? → go straight to app
     if (localStorage.getItem("nova_token")) {
@@ -465,14 +480,14 @@
     }
 
     async function submitRegister() {
-      const email = document.getElementById("regEmail").value.trim();
-      const password = document.getElementById("regPass").value;
-      const confirm = document.getElementById("regPassConfirm").value;
+  const email       = document.getElementById("regEmail").value.trim();
+  const password    = document.getElementById("regPass").value;
+  const confirm     = document.getElementById("regPassConfirm").value;
 
-      if (!email || !password || !confirm) return showAlert("Please fill in all fields.");
-      if (password !== confirm) return showAlert("Passwords do not match.");
-      if (password.length < 6) return showAlert("Password must be at least 6 characters.");
-
+  if (!email || !password || !confirm) return showAlert("Please fill in all fields.");
+  if (password !== confirm) return showAlert("Passwords do not match.");
+  if (password.length < 6) return showAlert("Password must be at least 6 characters.");
+  if (password.length > 72) return showAlert("Password must be less than 72 characters.");
       setLoading("registerBtn", true);
       clearAlert();
 
