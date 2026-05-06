@@ -1,34 +1,26 @@
 """
 NOVA — AI Voice Assistant Backend
-main.py  |  FastAPI + Groq
+main.py | FastAPI + Groq + JWT Auth
 """
 
 import os
 import traceback
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 from groq import Groq
+from jose import JWTError
 from dotenv import load_dotenv
 
-# ── Load .env file ──────────────────────────────────────────────────────────
+from database import SessionLocal, init_db
+from models import User, ChatSession, ChatMessage
+from auth import hash_password, verify_password, create_token, decode_token
+
+# ── Startup ──────────────────────────────────────────────────────────────────
 load_dotenv()
 
-app = FastAPI(title="NOVA AI Backend", version="2.1")
-
-# ── CORS ────────────────────────────────────────────────────────────────────
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# ── Groq client ─────────────────────────────────────────────────────────────
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-
 if not GROQ_API_KEY:
     print("=" * 60)
     print("ERROR: GROQ_API_KEY not found in environment!")
@@ -41,14 +33,50 @@ print(f"Groq API Key loaded: {GROQ_API_KEY[:8]}...{GROQ_API_KEY[-4:]}")
 
 client = Groq(api_key=GROQ_API_KEY)
 
-# ── System prompt ────────────────────────────────────────────────────────────
-SYSTEM_PROMPT = """You are NOVA, a friendly, witty, and intelligent AI voice assistant.
-You answer clearly and concisely since your responses will be read aloud.
-Avoid using markdown, bullet points, or special characters in your responses.
-Keep answers conversational and natural-sounding.
-If you don't know something, say so honestly."""
+app = FastAPI(title="NOVA AI Backend", version="2.1")
 
-# ── Request schema ───────────────────────────────────────────────────────────
+# Create DB tables on startup
+init_db()
+
+# ── CORS ──────────────────────────────────────────────────────────────────────
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ── DB Session Dependency ─────────────────────────────────────────────────────
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+# ── Auth Dependency ───────────────────────────────────────────────────────────
+def get_current_user(authorization: str = Header(None)):
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Not logged in. Please login first.")
+    try:
+        token = authorization.replace("Bearer ", "").strip()
+        payload = decode_token(token)
+        return payload["user_id"]
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Session expired. Please login again.")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token.")
+
+# ── Pydantic Schemas ──────────────────────────────────────────────────────────
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
 class Message(BaseModel):
     role: str
     content: str
@@ -57,8 +85,14 @@ class ChatRequest(BaseModel):
     message: str
     history: Optional[List[Message]] = []
 
+# ── System Prompt ─────────────────────────────────────────────────────────────
+SYSTEM_PROMPT = """You are NOVA, a friendly, witty, and intelligent AI voice assistant.
+You answer clearly and concisely since your responses will be read aloud.
+Avoid using markdown, bullet points, or special characters in your responses.
+Keep answers conversational and natural-sounding.
+If you don't know something, say so honestly."""
 
-# ── Helper: map Groq errors to human-readable fixes ─────────────────────────
+# ── Helper: map Groq errors to human-readable fixes ───────────────────────────
 def get_fix_hint(e: Exception) -> str:
     msg = str(e).lower()
     if "401" in msg or "invalid api key" in msg or "authentication" in msg:
@@ -68,22 +102,58 @@ def get_fix_hint(e: Exception) -> str:
             "then update your .env file."
         )
     if "429" in msg or "rate limit" in msg or "quota" in msg:
-        return (
-            "You hit the rate limit. Wait 1 minute and try again. "
-            "Free tier rate limits may apply. Try again after some time."
-        )
+        return "You hit the rate limit. Wait 1 minute and try again."
     if "model" in msg and ("not found" in msg or "does not exist" in msg):
-        return (
-            "Model name is wrong. "
-            "Use one of: llama-3.1-8b-instant, llama-3.1-8b-instant, mixtral-8x7b-32768"
-        )
+        return "Model name is wrong. Use: llama-3.1-8b-instant or llama-3.3-70b-versatile"
     if "connection" in msg or "timeout" in msg:
         return "Network issue — check your internet connection."
     return f"Unknown error. Full message: {str(e)}"
 
 
-# ── KEY TEST ROUTE ───────────────────────────────────────────────────────────
-# Open http://127.0.0.1:8000/test-key in your browser to verify your setup
+# ══════════════════════════════════════════════════════════════════════════════
+# AUTH ROUTES
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.post("/register")
+def register(data: RegisterRequest, db = Depends(get_db)):
+    if not data.email or not data.password:
+        raise HTTPException(status_code=400, detail="Email and password are required.")
+
+    if len(data.password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters.")
+
+    existing = db.query(User).filter(User.email == data.email.lower()).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="An account with this email already exists.")
+
+    user = User(
+        email    = data.email.lower().strip(),
+        password = hash_password(data.password)
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    token = create_token(user.id, user.email)
+    return {"message": "Account created!", "token": token, "email": user.email}
+
+
+@app.post("/login")
+def login(data: LoginRequest, db = Depends(get_db)):
+    user = db.query(User).filter(User.email == data.email.lower().strip()).first()
+
+    if not user or not verify_password(data.password, user.password):
+        raise HTTPException(status_code=401, detail="Incorrect email or password.")
+
+    token = create_token(user.id, user.email)
+    return {"token": token, "email": user.email}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# KEY TEST ROUTE
+# open http://127.0.0.1:8000/test-key in browser to verify your setup
+# ══════════════════════════════════════════════════════════════════════════════
+
 @app.get("/test-key")
 async def test_key():
     try:
@@ -106,15 +176,15 @@ async def test_key():
         }
 
 
-# ── Health check ─────────────────────────────────────────────────────────────
-@app.get("/")
-def home():
-    return {"status": "NOVA backend is running", "version": "2.1"}
+# ══════════════════════════════════════════════════════════════════════════════
+# MAIN CHAT ROUTE
+# ══════════════════════════════════════════════════════════════════════════════
 
-
-# ── Main chat route ──────────────────────────────────────────────────────────
 @app.post("/chat")
-async def chat(data: ChatRequest):
+async def chat(
+    data: ChatRequest,
+    user_id: int = Depends(get_current_user)
+):
     user_input = data.message.strip()
 
     if not user_input:
@@ -128,7 +198,7 @@ async def chat(data: ChatRequest):
 
     messages.append({"role": "user", "content": user_input})
 
-    print(f"\nUser: {user_input}")
+    print(f"\nUser [{user_id}]: {user_input}")
     print(f"History turns included: {len(data.history)}")
 
     try:
@@ -144,7 +214,6 @@ async def chat(data: ChatRequest):
         return {"reply": reply}
 
     except Exception as e:
-        # Print FULL error in your terminal — read this to understand what went wrong
         print("\n" + "=" * 60)
         print("GROQ API ERROR:")
         print(f"  Type    : {type(e).__name__}")
@@ -157,3 +226,9 @@ async def chat(data: ChatRequest):
             status_code=500,
             detail=f"{type(e).__name__}: {str(e)} | Fix: {hint}"
         )
+
+
+# ── Health Check ──────────────────────────────────────────────────────────────
+@app.get("/")
+def home():
+    return {"status": "NOVA backend is running", "version": "2.1"}

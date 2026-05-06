@@ -1,49 +1,65 @@
 /* ===========================
    NOVA — AI Voice Assistant
-   script.js
+   script.js (FULLY FIXED)
+   
+   FIXES:
+   ✅ localStorage key matches login.html (nova_token)
+   ✅ Session management & chat history
+   ✅ User email display
 =========================== */
 
-// ─── CONFIG ───────────────────────────────────────────────────────────────
-const BACKEND_URL = "http://127.0.0.1:8000/chat";
+const BACKEND_URL = "http://127.0.0.1:8000";
+const TOKEN = localStorage.getItem("nova_token");
+const USER_EMAIL = localStorage.getItem("nova_email");
 
-// ─── ELEMENTS ─────────────────────────────────────────────────────────────
-const chatBox       = document.getElementById("chat");
-const micBtn        = document.getElementById("micBtn");
-const statusPill    = document.getElementById("statusPill");
-const statusText    = document.getElementById("statusText");
-const textInput     = document.getElementById("textInput");
+if (!TOKEN) {
+  window.location.href = "login.html";
+}
+
+// DOM Elements
+const chatBox = document.getElementById("chat");
+const micBtn = document.getElementById("micBtn");
+const statusPill = document.getElementById("statusPill");
+const statusText = document.getElementById("statusText");
+const textInput = document.getElementById("textInput");
 const welcomeScreen = document.getElementById("welcomeScreen");
-const toast         = document.getElementById("toast");
+const toast = document.getElementById("toast");
+const userEmail = document.getElementById("userEmail");
+const userAvatar = document.getElementById("userAvatar");
+const sessionsList = document.getElementById("sessionsList");
+const headerTitle = document.getElementById("headerTitle");
+const sidebar = document.getElementById("sidebar");
 
-// ─── CONVERSATION MEMORY ──────────────────────────────────────────────────
-// Stores the full chat history so the AI has context across turns
-const conversationHistory = [];
+// State
+let currentSessionId = null;
+let conversationHistory = [];
+let isListening = false;
 
-// ─── SPEECH RECOGNITION SETUP ─────────────────────────────────────────────
-const SpeechRecognition =
-  window.SpeechRecognition || window.webkitSpeechRecognition;
+// Display user email
+if (userEmail && USER_EMAIL) {
+  userEmail.textContent = USER_EMAIL;
+  userAvatar.textContent = USER_EMAIL[0].toUpperCase();
+}
 
+// ─── SPEECH RECOGNITION ───
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recognition = null;
-let isListening  = false;
 
 if (SpeechRecognition) {
   recognition = new SpeechRecognition();
   recognition.lang = "en-US";
   recognition.interimResults = false;
-  recognition.continuous     = false;
-  recognition.maxAlternatives = 1;
+  recognition.continuous = false;
 
-  // ✅ FIX: Guard against double-start races
   recognition.onstart = () => {
     isListening = true;
     setStatus("listening", "Listening…");
     micBtn.classList.add("listening");
   };
 
-  recognition.onresult = async (event) => {
+  recognition.onresult = (event) => {
     const userText = event.results[0][0].transcript.trim();
-    if (!userText) return;
-    handleUserMessage(userText);
+    if (userText) handleUserMessage(userText);
   };
 
   recognition.onend = () => {
@@ -54,53 +70,38 @@ if (SpeechRecognition) {
     }
   };
 
-  // ✅ FIX: Proper error codes with helpful messages
   recognition.onerror = (event) => {
     isListening = false;
     micBtn.classList.remove("listening");
-    setStatus("", "Ready");
-
     const errorMessages = {
-      "no-speech":    "⚠️ No speech detected — please try again.",
-      "not-allowed":  "🚫 Microphone access denied. Check browser permissions.",
-      "audio-capture":"🎤 No microphone found. Connect one and try again.",
-      "network":      "🌐 Network error during speech recognition.",
-      "aborted":      null,   // user cancelled — silent
+      "no-speech": "⚠️ No speech detected",
+      "not-allowed": "🚫 Microphone denied",
+      "audio-capture": "🎤 No microphone found",
+      "network": "🌐 Network error",
     };
-
-    const msg = errorMessages[event.error];
-    if (msg) showToast(msg);
+    if (errorMessages[event.error]) showToast(errorMessages[event.error]);
   };
 } else {
-  // Browser doesn't support speech recognition
   micBtn.style.display = "none";
-  showToast("⚠️ Browser doesn't support voice input. Use Chrome or Edge.");
 }
 
-// ─── MIC BUTTON ───────────────────────────────────────────────────────────
+// ─── MIC & INPUT ───
 function startListening() {
   if (!recognition) return;
-
   if (isListening) {
-    // Toggle off
     recognition.stop();
-    return;
-  }
-
-  // ✅ FIX: Wrap in try/catch — prevents "already started" crash
-  try {
-    recognition.start();
-  } catch (e) {
-    console.warn("Recognition start error:", e.message);
-    // If already started, stop and restart
-    if (e.message.includes("already started")) {
-      recognition.stop();
-      setTimeout(() => recognition.start(), 300);
+  } else {
+    try {
+      recognition.start();
+    } catch (e) {
+      if (e.message.includes("already started")) {
+        recognition.stop();
+        setTimeout(() => recognition.start(), 300);
+      }
     }
   }
 }
 
-// ─── TEXT INPUT ───────────────────────────────────────────────────────────
 function handleKey(event) {
   if (event.key === "Enter" && !event.shiftKey) {
     event.preventDefault();
@@ -110,10 +111,11 @@ function handleKey(event) {
 
 function sendText() {
   const text = textInput.value.trim();
-  if (!text) return;
-  textInput.value = "";
-  autoResize(textInput);
-  handleUserMessage(text);
+  if (text) {
+    textInput.value = "";
+    autoResize(textInput);
+    handleUserMessage(text);
+  }
 }
 
 function autoResize(el) {
@@ -121,15 +123,8 @@ function autoResize(el) {
   el.style.height = Math.min(el.scrollHeight, 120) + "px";
 }
 
-// ─── SUGGESTION CHIPS ─────────────────────────────────────────────────────
-function sendChip(btn) {
-  const text = btn.textContent.replace(/^[\p{Emoji}\s]+/u, "").trim();
-  handleUserMessage(text);
-}
-
-// ─── CORE MESSAGE HANDLER ─────────────────────────────────────────────────
+// ─── MAIN CHAT HANDLER ───
 async function handleUserMessage(text) {
-  // Hide welcome screen on first message
   if (welcomeScreen) welcomeScreen.style.display = "none";
 
   addMessage(text, "user");
@@ -139,71 +134,164 @@ async function handleUserMessage(text) {
   const typingEl = addTypingIndicator();
 
   try {
-    const reply = await fetchAIResponse(text);
+    const result = await fetchAIResponse(text);
     typingEl.remove();
     setStatus("", "Ready");
 
-    addMessage(reply, "bot");
-    conversationHistory.push({ role: "assistant", content: reply });
+    addMessage(result.reply, "bot");
+    conversationHistory.push({ role: "assistant", content: result.reply });
 
-    speak(reply);
+    if (result.session_id && !currentSessionId) {
+      currentSessionId = result.session_id;
+      headerTitle.textContent = result.title || "New Chat";
+      loadSessions();
+    }
+
+    speak(result.reply);
+
   } catch (err) {
     typingEl.remove();
     setStatus("", "Ready");
-    console.error("Chat error:", err);
-
-    const errMsg = getErrorMessage(err);
-    addMessage(errMsg, "bot");
-    showToast("⚠️ Could not reach the server.");
+    addMessage("❌ " + err.message, "bot");
+    showToast("Server error");
   }
 }
 
-// ─── API CALL WITH MEMORY ─────────────────────────────────────────────────
+// ─── API WITH AUTH ───
 async function fetchAIResponse(userText) {
-  const response = await fetch(BACKEND_URL, {
+  if (!TOKEN) throw new Error("Not logged in");
+
+  const response = await fetch(`${BACKEND_URL}/chat`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    // Send full history so backend can pass it to Groq
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${TOKEN}`
+    },
     body: JSON.stringify({
       message: userText,
-      history: conversationHistory.slice(-10)  // last 10 turns for context
+      session_id: currentSessionId
     }),
   });
+
+  if (response.status === 401) {
+    localStorage.removeItem("nova_token");
+    localStorage.removeItem("nova_email");
+    window.location.href = "login.html";
+    throw new Error("Session expired");
+  }
 
   if (!response.ok) {
     const errData = await response.json().catch(() => ({}));
     throw new Error(errData.detail || `HTTP ${response.status}`);
   }
 
-  const data = await response.json();
-  return data.reply;
+  return await response.json();
 }
 
-function getErrorMessage(err) {
-  if (err.message.includes("Failed to fetch")) {
-    return "❌ Cannot connect to server. Make sure your FastAPI backend is running on port 8000.";
+// ─── SESSIONS ───
+function startNewChat() {
+  currentSessionId = null;
+  conversationHistory = [];
+  chatBox.innerHTML = '';
+  if (welcomeScreen) welcomeScreen.style.display = "flex";
+  headerTitle.textContent = "New Chat";
+  textInput.value = '';
+}
+
+async function loadSessions() {
+  if (!sessionsList) return;
+
+  try {
+    const res = await fetch(`${BACKEND_URL}/sessions`, {
+      headers: { "Authorization": `Bearer ${TOKEN}` }
+    });
+
+    if (res.status === 401) {
+      window.location.href = "login.html";
+      return;
+    }
+
+    const sessions = await res.json();
+    sessionsList.innerHTML = '';
+
+    if (sessions.length === 0) {
+      sessionsList.innerHTML = '<div style="padding:12px; color:var(--muted); font-size:0.8rem;">No chats yet</div>';
+      return;
+    }
+
+    sessions.forEach(session => {
+      const div = document.createElement('div');
+      div.className = 'session-item' + (session.id === currentSessionId ? ' active' : '');
+      div.innerHTML = `
+        <span onclick="loadSession(${session.id})">${session.title}</span>
+        <button onclick="deleteSession(${session.id})" class="icon-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+        </button>
+      `;
+      sessionsList.appendChild(div);
+    });
+  } catch (err) {
+    console.error("Error loading sessions:", err);
   }
-  return `❌ Error: ${err.message}`;
 }
 
-// ─── UI HELPERS ───────────────────────────────────────────────────────────
+async function loadSession(sessionId) {
+  try {
+    const res = await fetch(`${BACKEND_URL}/sessions/${sessionId}/messages`, {
+      headers: { "Authorization": `Bearer ${TOKEN}` }
+    });
+
+    const messages = await res.json();
+    currentSessionId = sessionId;
+    conversationHistory = messages;
+
+    chatBox.innerHTML = '';
+    if (welcomeScreen) welcomeScreen.style.display = "none";
+
+    messages.forEach(msg => {
+      addMessage(msg.content, msg.role === "assistant" ? "bot" : "user");
+    });
+
+    headerTitle.textContent = messages.length > 0 ? "Chat loaded" : "New Chat";
+    loadSessions();
+  } catch (err) {
+    showToast("Failed to load chat");
+  }
+}
+
+async function deleteSession(sessionId) {
+  if (!confirm("Delete this chat?")) return;
+
+  try {
+    const res = await fetch(`${BACKEND_URL}/sessions/${sessionId}`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${TOKEN}` }
+    });
+
+    if (currentSessionId === sessionId) startNewChat();
+    loadSessions();
+    showToast("Chat deleted");
+  } catch (err) {
+    showToast("Error deleting chat");
+  }
+}
+
+// ─── UI HELPERS ───
 function addMessage(text, role) {
   const div = document.createElement("div");
   div.className = `message ${role}`;
   div.textContent = text;
   chatBox.appendChild(div);
   chatBox.scrollTop = chatBox.scrollHeight;
-  return div;
 }
 
 function addTypingIndicator() {
   const div = document.createElement("div");
   div.className = "typing-indicator";
-  div.innerHTML = `
-    <div class="typing-dot"></div>
-    <div class="typing-dot"></div>
-    <div class="typing-dot"></div>
-  `;
+  div.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
   chatBox.appendChild(div);
   chatBox.scrollTop = chatBox.scrollHeight;
   return div;
@@ -214,38 +302,37 @@ function setStatus(mode, label) {
   statusText.textContent = label;
 }
 
-function showToast(msg, duration = 3500) {
+function showToast(msg, duration = 3000) {
   toast.textContent = msg;
   toast.classList.add("show");
   setTimeout(() => toast.classList.remove("show"), duration);
 }
 
-// ─── TEXT-TO-SPEECH ───────────────────────────────────────────────────────
 function speak(text) {
   if (!window.speechSynthesis) return;
-
-  // Cancel any in-progress speech
   window.speechSynthesis.cancel();
-
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang  = "en-US";
-  utterance.rate  = 1.05;
-  utterance.pitch = 1;
-
-  // ✅ FIX: Chrome TTS bug — voices must be loaded first
-  const setVoice = () => {
-    const voices = window.speechSynthesis.getVoices();
-    const preferred = voices.find(v =>
-      v.name.includes("Google") && v.lang === "en-US"
-    ) || voices.find(v => v.lang === "en-US") || voices[0];
-
-    if (preferred) utterance.voice = preferred;
-    window.speechSynthesis.speak(utterance);
-  };
-
-  if (window.speechSynthesis.getVoices().length > 0) {
-    setVoice();
-  } else {
-    window.speechSynthesis.onvoiceschanged = setVoice;
-  }
+  utterance.lang = "en-US";
+  const voices = window.speechSynthesis.getVoices();
+  if (voices.length) utterance.voice = voices.find(v => v.lang === "en-US") || voices[0];
+  window.speechSynthesis.speak(utterance);
 }
+
+function toggleSidebar() {
+  sidebar.classList.toggle("collapsed");
+}
+
+function sendChip(el) {
+  const text = el.textContent.replace(/^[^\s]+ /, '');
+  handleUserMessage(text);
+}
+
+function logout() {
+  localStorage.removeItem("nova_token");
+  localStorage.removeItem("nova_email");
+  window.location.href = "login.html";
+}
+
+window.addEventListener("load", () => {
+  loadSessions();
+});

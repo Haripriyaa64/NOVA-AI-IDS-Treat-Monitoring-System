@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+sqlalchemy
+python-jose
+passlib
+python-dotenv
+groq
+pydantic
+cryptography
+email-validator

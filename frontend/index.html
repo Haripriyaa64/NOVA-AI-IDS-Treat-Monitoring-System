@@ -4,20 +4,22 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>NOVA — AI Voice Assistant</title>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-  <!-- Animated background orbs -->
+  <!-- Background -->
   <div class="bg-orb orb1"></div>
   <div class="bg-orb orb2"></div>
   <div class="bg-orb orb3"></div>
 
   <div class="app-wrapper">
 
-    <!-- Header -->
+    <!-- HEADER -->
     <header class="header">
       <div class="logo">
         <div class="logo-icon">
@@ -27,15 +29,24 @@
         </div>
         <span class="logo-text">NOVA</span>
       </div>
+
       <div class="status-pill" id="statusPill">
         <span class="status-dot"></span>
         <span id="statusText">Ready</span>
       </div>
+
+      <!-- ✅ FIXED LOGOUT BUTTON -->
+      <div style="margin-left:auto;">
+        <button onclick="doLogout()" class="send-btn">
+          Logout
+        </button>
+      </div>
     </header>
 
-    <!-- Chat Area -->
+    <!-- CHAT AREA -->
     <main class="chat-area" id="chat">
-      <!-- Welcome screen shown when no messages -->
+
+      <!-- Welcome Screen -->
       <div class="welcome-screen" id="welcomeScreen">
         <div class="welcome-orb">
           <svg viewBox="0 0 100 100" class="wave-svg">
@@ -51,8 +62,10 @@
           </svg>
           <div class="mic-icon-center">🤖</div>
         </div>
+
         <h2>How can I help you today?</h2>
         <p>Tap the mic and start speaking, or type your message below.</p>
+
         <div class="suggestion-chips">
           <button class="chip" onclick="sendChip(this)">💡 Explain quantum computing</button>
           <button class="chip" onclick="sendChip(this)">🌍 Tell me a fun fact</button>
@@ -60,9 +73,10 @@
           <button class="chip" onclick="sendChip(this)">🧮 Help me solve a problem</button>
         </div>
       </div>
+
     </main>
 
-    <!-- Input Area -->
+    <!-- INPUT AREA -->
     <footer class="input-area">
       <div class="input-bar">
         <textarea
@@ -72,19 +86,22 @@
           onkeydown="handleKey(event)"
           oninput="autoResize(this)"
         ></textarea>
-        <button class="send-btn" id="sendBtn" onclick="sendText()" title="Send message">
+
+        <button class="send-btn" id="sendBtn" onclick="sendText()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <line x1="22" y1="2" x2="11" y2="13"/>
             <polygon points="22 2 15 22 11 13 2 9 22 2"/>
           </svg>
         </button>
       </div>
-      <button class="mic-btn" id="micBtn" onclick="startListening()" title="Start voice input">
+
+      <button class="mic-btn" id="micBtn" onclick="startListening()">
         <div class="mic-rings">
           <div class="ring ring1"></div>
           <div class="ring ring2"></div>
           <div class="ring ring3"></div>
         </div>
+
         <svg class="mic-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
           <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
@@ -96,9 +113,26 @@
 
   </div>
 
-  <!-- Toast notification -->
+  <!-- TOAST -->
   <div class="toast" id="toast"></div>
 
+  <!-- ✅ AUTH GUARD -->
+  <script>
+    if (!localStorage.getItem("nova_token")) {
+      window.location.href = "login.html";
+    }
+
+    // ✅ CLEAN LOGOUT FUNCTION
+    function doLogout() {
+      localStorage.removeItem("nova_token");
+      localStorage.removeItem("nova_email");
+      localStorage.removeItem("nova_session_id");
+      window.location.href = "login.html";
+    }
+  </script>
+
+  <!-- ✅ ONLY ONE SCRIPT -->
   <script src="script.js"></script>
+
 </body>
 </html>
