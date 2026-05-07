@@ -5,7 +5,8 @@ python-multipart==0.0.6
 python-jose[cryptography]==3.3.0
 passlib==1.7.4
 python-dotenv==1.0.0
-groq==0.4.2
-pydantic==1.10.13
+groq==0.9.0
+pydantic[email]==2.6.4
+pydantic-core==2.16.3
 cryptography==41.0.7
 email-validator==2.1.0
