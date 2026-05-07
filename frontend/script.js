@@ -147,7 +147,7 @@ async function handleUserMessage(text) {
 
     if (result.session_id && !currentSessionId) {
       currentSessionId = result.session_id;
-      headerTitle.textContent = result.title || "New Chat";
+      if (headerTitle) headerTitle.textContent = result.title || "New Chat";
       loadSessions();
     }
 
@@ -198,7 +198,7 @@ function startNewChat() {
   conversationHistory = [];
   chatBox.innerHTML = '';
   if (welcomeScreen) welcomeScreen.style.display = "flex";
-  headerTitle.textContent = "New Chat";
+  if (headerTitle) headerTitle.textContent = "New Chat";
   textInput.value = '';
 }
 
@@ -259,7 +259,7 @@ async function loadSession(sessionId) {
       addMessage(msg.content, msg.role === "assistant" ? "bot" : "user");
     });
 
-    headerTitle.textContent = messages.length > 0 ? "Chat loaded" : "New Chat";
+    if (headerTitle) headerTitle.textContent = messages.length > 0 ? "Chat loaded" : "New Chat";
     loadSessions();
   } catch (err) {
     showToast("Failed to load chat");
