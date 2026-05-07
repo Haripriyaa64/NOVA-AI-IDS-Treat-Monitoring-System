@@ -1,15 +1,6 @@
 """
 auth.py — Password hashing + JWT token creation/verification.
-
-WHY THIS FILE EXISTS SEPARATELY:
-  Keeps auth logic out of main.py so it stays clean.
-  main.py imports these functions instead of duplicating them.
-
-CRITICAL FIX from old code:
-  Old auth.py had SECRET_KEY = "supersecretkey" hardcoded.
-  main.py loaded SECRET_KEY from .env.
-  Result: tokens created by auth.py couldn't be verified by main.py.
-  Fix: BOTH files now read SECRET_KEY from .env via os.getenv().
+SWITCHED TO ARGON2 (more reliable than bcrypt for deployment)
 """
 
 import os
@@ -21,32 +12,38 @@ from dotenv import load_dotenv
 load_dotenv()
 
 SECRET_KEY = os.getenv("SECRET_KEY", "change-this-in-production-please")
-ALGORITHM  = "HS256"
-TOKEN_EXPIRE_HOURS = 24 * 7  # 7 days — users stay logged in
+ALGORITHM = "HS256"
+TOKEN_EXPIRE_HOURS = 24 * 7  # 7 days
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# ✅ SWITCHED TO ARGON2 - more stable than bcrypt
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 
 def hash_password(password: str) -> str:
-    """Turns 'mypassword' → '$2b$12$...' (bcrypt hash). Never store raw passwords."""
+    """
+    Hash password using Argon2 (more reliable than bcrypt).
+    Never store raw passwords.
+    """
+    # Validate password length BEFORE hashing
+    password = password[:100]  # Argon2 can handle longer passwords
     return pwd_context.hash(password)
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    """Returns True if the plain password matches the stored hash."""
+    """Returns True if plain password matches hashed version."""
+    plain = plain[:100]  # Limit length
     return pwd_context.verify(plain, hashed)
 
 
 def create_token(user_id: int, email: str) -> str:
     """
     Creates a signed JWT token containing user_id + email.
-    The token expires in TOKEN_EXPIRE_HOURS hours.
-    Frontend stores this in localStorage and sends it with every request.
+    Token expires in TOKEN_EXPIRE_HOURS hours.
     """
     payload = {
         "user_id": user_id,
-        "email":   email,
-        "exp":     datetime.utcnow() + timedelta(hours=TOKEN_EXPIRE_HOURS)
+        "email": email,
+        "exp": datetime.utcnow() + timedelta(hours=TOKEN_EXPIRE_HOURS)
     }
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
@@ -54,7 +51,7 @@ def create_token(user_id: int, email: str) -> str:
 def decode_token(token: str) -> dict:
     """
     Decodes and validates a JWT token.
-    Raises JWTError if expired or tampered.
-    Returns the payload dict {user_id, email, exp}.
+    Raises JWTError if expired or invalid.
+    Returns payload {user_id, email, exp}.
     """
     return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
