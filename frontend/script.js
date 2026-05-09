@@ -139,6 +139,7 @@ async function handleUserMessage(text) {
 
   try {
     const result = await fetchAIResponse(text);
+    console.log("Backend result:", result);
     typingEl.remove();
     setStatus("", "Ready");
 
@@ -286,9 +287,19 @@ async function deleteSession(sessionId) {
 // ─── UI HELPERS ───
 function addMessage(text, role) {
   const div = document.createElement("div");
-  div.className = `message ${role}`;
+
+  div.className = role === "bot"
+    ? "message bot"
+    : "message user";
+
+  div.style.display = "block";
+  div.style.visibility = "visible";
+  div.style.opacity = "1";
+
   div.textContent = text;
+
   chatBox.appendChild(div);
+
   chatBox.scrollTop = chatBox.scrollHeight;
 }
 

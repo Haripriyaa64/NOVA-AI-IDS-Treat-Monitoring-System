@@ -5,7 +5,9 @@ main.py | FastAPI + Groq + JWT Auth + Chat History + FIXED CORS + Validation
 
 import os
 import traceback
-from fastapi import FastAPI, HTTPException, Depends, Header
+import socket
+from ids_rules import run_ids_rules , run_signature_detection
+from fastapi import FastAPI, HTTPException, Depends, Header , Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
@@ -15,7 +17,7 @@ from jose import JWTError
 from dotenv import load_dotenv
 
 from database import SessionLocal, init_db
-from models import User, ChatSession, ChatMessage
+from models import User, ChatSession, ChatMessage , LoginLog , Alert
 from auth import hash_password, verify_password, create_token, decode_token
 
 # ── Startup ──────────────────────────────────────────────────────────────────
@@ -134,25 +136,65 @@ def register(data: RegisterRequest, db: Session = Depends(get_db)):
         print(f"Registration error: {str(e)}")
         raise HTTPException(status_code=500, detail="Registration failed. Please try again.")
 
-
 @app.post("/login")
-def login(data: LoginRequest, db: Session = Depends(get_db)):
-    """
-    Verifies email + password.
-    Returns a JWT token the frontend stores in localStorage.
-    """
+def login(
+    data: LoginRequest,
+    request: Request,
+    db: Session = Depends(get_db)
+):
     if not data.email or not data.password:
         raise HTTPException(status_code=400, detail="Email and password are required.")
 
-    user = db.query(User).filter(User.email == data.email.lower()).first()
+    email = data.email.lower().strip()
 
-    if not user or not verify_password(data.password, user.password):
+    source_ip = request.client.host
+    destination_ip = socket.gethostbyname(socket.gethostname())
+    user_agent = request.headers.get("user-agent", "Unknown")
+
+    user = db.query(User).filter(User.email == email).first()
+
+    # Safe password check
+    try:
+        password_ok = user and verify_password(data.password, user.password)
+    except Exception:
+        password_ok = False
+
+    # FAILED LOGIN
+    if not user or not password_ok:
+        log = LoginLog(
+            email=email,
+            source_ip=source_ip,
+            destination_ip=destination_ip,
+            user_agent=user_agent,
+            login_status="FAILED"
+        )
+
+        db.add(log)
+        db.commit()
+
+        run_ids_rules(db, email, source_ip)
+        run_signature_detection(db, email, source_ip, email, user_agent)
+
         raise HTTPException(status_code=401, detail="Incorrect email or password.")
 
+    # SUCCESS LOGIN
+    log = LoginLog(
+        email=email,
+        source_ip=source_ip,
+        destination_ip=destination_ip,
+        user_agent=user_agent,
+        login_status="SUCCESS"
+    )
+
+    db.add(log)
+    db.commit()
+
+    run_ids_rules(db, email, source_ip)
+    run_signature_detection(db, email, source_ip, email, user_agent)
+
     token = create_token(user.id, user.email)
+
     return {"token": token, "email": user.email}
-
-
 # ══════════════════════════════════════════════════════════════════════════════
 # SESSION ROUTES
 # ══════════════════════════════════════════════════════════════════════════════

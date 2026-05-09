@@ -51,3 +51,35 @@ class ChatMessage(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     session    = relationship("ChatSession", back_populates="messages")
+    
+class LoginLog(Base):
+
+    __tablename__ = "login_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    email = Column(String, nullable=False)
+
+    source_ip = Column(String, nullable=False)
+
+    destination_ip = Column(String, nullable=False)
+
+    user_agent = Column(Text)
+
+    login_status = Column(String, nullable=False)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+class Alert(Base):
+    """
+    Stores IDS alerts generated from suspicious login activity.
+    """
+    __tablename__ = "alerts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, nullable=True)
+    source_ip = Column(String, nullable=False)
+    attack_type = Column(String, nullable=False)
+    risk_level = Column(String, nullable=False)
+    message = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
