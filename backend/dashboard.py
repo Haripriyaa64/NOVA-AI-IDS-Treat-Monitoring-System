@@ -12,7 +12,276 @@ st.set_page_config(
     layout="wide"
 )
 
+ADMIN_PASSWORD = "admin123"
+
+if "admin_logged_in" not in st.session_state:
+    st.session_state.admin_logged_in = False
+
 # ---------- Enhanced Cybersecurity-Themed CSS ----------
+# st.markdown("""
+# <style>
+# @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Inter:wght@400;600;800&display=swap');
+
+# :root{
+#   --bg:#020617;
+#   --cyan:#22d3ee;
+#   --blue:#3b82f6;
+#   --purple:#8b5cf6;
+#   --red:#ef4444;
+#   --orange:#f59e0b;
+#   --green:#22c55e;
+#   --text:#e5f2ff;
+#   --muted:#94a3b8;
+#   --glass:rgba(255,255,255,.07);
+#   --border:rgba(34,211,238,.28);
+# }
+
+# .stApp{
+#   background:
+#     radial-gradient(circle at 12% 18%, rgba(34,211,238,.18), transparent 28%),
+#     radial-gradient(circle at 90% 10%, rgba(139,92,246,.18), transparent 30%),
+#     radial-gradient(circle at 50% 95%, rgba(59,130,246,.14), transparent 30%),
+#     linear-gradient(135deg,#020617,#07111f,#0f172a);
+#   color:var(--text);
+#   font-family:'Inter',sans-serif;
+# }
+
+# .stApp:before{
+#   content:"";
+#   position:fixed;
+#   inset:0;
+#   pointer-events:none;
+#   background-image:
+#     linear-gradient(rgba(34,211,238,.04) 1px, transparent 1px),
+#     linear-gradient(90deg, rgba(34,211,238,.04) 1px, transparent 1px);
+#   background-size:42px 42px;
+#   animation:gridMove 18s linear infinite;
+# }
+
+# @keyframes gridMove{
+#   from{background-position:0 0;}
+#   to{background-position:42px 42px;}
+# }
+
+# .main-card,.metric-card,.login-card{
+#   position:relative;
+#   background:linear-gradient(145deg,rgba(255,255,255,.09),rgba(255,255,255,.025));
+#   border:1px solid var(--border);
+#   border-radius:24px;
+#   padding:24px;
+#   backdrop-filter:blur(18px) saturate(160%);
+#   box-shadow:
+#     0 25px 65px rgba(0,0,0,.58),
+#     inset 0 1px 0 rgba(255,255,255,.14),
+#     0 0 34px rgba(34,211,238,.11);
+#   animation:floatCard 5s ease-in-out infinite;
+# }
+
+# .main-card:hover,.metric-card:hover{
+#   transform:translateY(-8px) scale(1.01);
+#   box-shadow:
+#     0 32px 80px rgba(0,0,0,.72),
+#     0 0 45px rgba(34,211,238,.24),
+#     inset 0 1px 0 rgba(255,255,255,.18);
+# }
+
+# @keyframes floatCard{
+#   0%,100%{transform:translateY(0);}
+#   50%{transform:translateY(-5px);}
+# }
+
+# .main-card:before,.metric-card:before,.login-card:before{
+#   content:"";
+#   position:absolute;
+#   inset:0;
+#   border-radius:24px;
+#   padding:1px;
+#   background:linear-gradient(135deg,rgba(34,211,238,.75),rgba(139,92,246,.25),rgba(59,130,246,.45));
+#   -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+#   -webkit-mask-composite:xor;
+#   mask-composite:exclude;
+#   pointer-events:none;
+# }
+
+# .login-card{
+#   max-width:560px;
+#   margin:12vh auto 30px auto;
+#   text-align:center;
+# }
+
+# .login-card h1{
+#   font-family:'Orbitron',sans-serif;
+#   font-size:34px;
+#   letter-spacing:1.5px;
+#   color:#ecfeff;
+#   text-shadow:0 0 22px rgba(34,211,238,.7);
+# }
+
+# .login-card p{
+#   color:var(--muted);
+#   margin-top:8px;
+# }
+
+# h1,h2,h3,.card-title{
+#   font-family:'Orbitron',sans-serif !important;
+#   color:#ecfeff !important;
+#   letter-spacing:.8px;
+#   text-shadow:0 0 18px rgba(34,211,238,.3);
+# }
+
+# .metric-card{
+#   min-height:120px;
+#   transition:.28s ease;
+# }
+
+# .metric-icon{
+#   width:54px;
+#   height:54px;
+#   display:inline-flex;
+#   align-items:center;
+#   justify-content:center;
+#   border-radius:16px;
+#   margin-right:14px;
+#   font-size:24px;
+#   background:linear-gradient(135deg,rgba(34,211,238,.24),rgba(139,92,246,.16));
+#   border:1px solid rgba(34,211,238,.24);
+#   box-shadow:0 0 24px rgba(34,211,238,.18);
+# }
+
+# .metric-title{
+#   font-size:13px;
+#   color:var(--muted);
+#   text-transform:uppercase;
+#   letter-spacing:1px;
+#   font-weight:800;
+# }
+
+# .metric-value{
+#   font-family:'Orbitron',sans-serif;
+#   font-size:34px;
+#   font-weight:900;
+#   color:#fff;
+#   text-shadow:0 0 18px rgba(34,211,238,.45);
+# }
+
+# .alert-high,.alert-medium,.alert-low{
+#   border-radius:18px;
+#   padding:16px;
+#   margin-bottom:12px;
+#   backdrop-filter:blur(12px);
+#   transition:.25s ease;
+#   box-shadow:0 12px 35px rgba(0,0,0,.38);
+# }
+
+# .alert-high:hover,.alert-medium:hover,.alert-low:hover{
+#   transform:translateX(8px) scale(1.01);
+# }
+
+# .alert-high{
+#   background:linear-gradient(90deg,rgba(239,68,68,.22),rgba(239,68,68,.04));
+#   border-left:5px solid var(--red);
+#   box-shadow:0 0 30px rgba(239,68,68,.18);
+# }
+
+# .alert-medium{
+#   background:linear-gradient(90deg,rgba(245,158,11,.22),rgba(245,158,11,.04));
+#   border-left:5px solid var(--orange);
+#   box-shadow:0 0 30px rgba(245,158,11,.16);
+# }
+
+# .alert-low{
+#   background:linear-gradient(90deg,rgba(34,197,94,.17),rgba(34,197,94,.035));
+#   border-left:5px solid var(--green);
+#   box-shadow:0 0 30px rgba(34,197,94,.13);
+# }
+
+# .badge{
+#   display:inline-block;
+#   padding:5px 11px;
+#   border-radius:999px;
+#   font-size:11px;
+#   font-weight:900;
+#   letter-spacing:.8px;
+#   text-transform:uppercase;
+# }
+
+# .badge-high{
+#   background:linear-gradient(90deg,#ef4444,#fb7185);
+#   color:white;
+#   box-shadow:0 0 18px rgba(239,68,68,.45);
+# }
+
+# .badge-med{
+#   background:linear-gradient(90deg,#f59e0b,#fbbf24);
+#   color:#111827;
+#   box-shadow:0 0 18px rgba(245,158,11,.35);
+# }
+
+# .badge-low{
+#   background:linear-gradient(90deg,#22c55e,#86efac);
+#   color:#052e16;
+#   box-shadow:0 0 18px rgba(34,197,94,.30);
+# }
+
+# [data-testid="stSidebar"]{
+#   background:linear-gradient(180deg,rgba(2,6,23,.97),rgba(15,23,42,.92));
+#   border-right:1px solid rgba(34,211,238,.18);
+#   box-shadow:12px 0 42px rgba(0,0,0,.45);
+# }
+
+# [data-testid="stPlotlyChart"]{
+#   background:rgba(255,255,255,.03);
+#   border:1px solid rgba(34,211,238,.14);
+#   border-radius:20px;
+#   padding:10px;
+#   box-shadow:inset 0 0 28px rgba(34,211,238,.045), 0 18px 45px rgba(0,0,0,.28);
+# }
+
+# .stButton button{
+#   background:linear-gradient(135deg,var(--cyan),var(--blue),var(--purple));
+#   color:white;
+#   border:0;
+#   border-radius:14px;
+#   padding:10px 22px;
+#   font-weight:800;
+#   box-shadow:0 0 28px rgba(34,211,238,.30);
+#   transition:.25s ease;
+# }
+
+# .stButton button:hover{
+#   transform:translateY(-3px) scale(1.03);
+#   box-shadow:0 0 42px rgba(34,211,238,.50);
+# }
+
+# input{
+#   background:rgba(255,255,255,.08)!important;
+#   color:white!important;
+#   border:1px solid rgba(34,211,238,.28)!important;
+#   border-radius:14px!important;
+# }
+
+# .stDataFrame{
+#   border-radius:18px;
+#   overflow:hidden;
+#   border:1px solid rgba(34,211,238,.14);
+#   box-shadow:0 18px 45px rgba(0,0,0,.38);
+# }
+
+# .ip-table{
+#   background:linear-gradient(145deg,rgba(34,211,238,.075),rgba(139,92,246,.04));
+# }
+
+# ::-webkit-scrollbar{width:8px;height:8px;}
+# ::-webkit-scrollbar-track{background:#020617;}
+# ::-webkit-scrollbar-thumb{
+#   background:linear-gradient(var(--cyan),var(--purple));
+#   border-radius:999px;
+# }
+# </style>
+# """, unsafe_allow_html=True)
+
+
+
 st.markdown("""
 <style>
 :root{
@@ -186,6 +455,25 @@ section.main > div[role="list"] { gap: 10px; }
 }
 </style>
 """, unsafe_allow_html=True)
+
+if not st.session_state.admin_logged_in:
+    st.markdown("""
+    <div class="login-card">
+        <h1>🛡️ NOVA IDS Admin Access</h1>
+        <p>Cyber Threat Hunting & Intrusion Monitoring Console</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    password = st.text_input("Enter Admin Password", type="password")
+
+    if st.button("Access Dashboard"):
+        if password == ADMIN_PASSWORD:
+            st.session_state.admin_logged_in = True
+            st.rerun()
+        else:
+            st.error("Invalid admin password")
+
+    st.stop()
 
 
 # ---------- Load Data ----------

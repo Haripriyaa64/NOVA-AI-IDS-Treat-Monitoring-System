@@ -199,75 +199,75 @@ def login(
 # SESSION ROUTES
 # ══════════════════════════════════════════════════════════════════════════════
 
-@app.post("/sessions/new")
-def new_session(
-    user_id: int = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Creates a new empty chat session."""
-    session = ChatSession(user_id=user_id, title="New Chat")
-    db.add(session)
-    db.commit()
-    db.refresh(session)
-    return {"session_id": session.id, "title": session.title}
+# @app.post("/sessions/new")
+# def new_session(
+#     user_id: int = Depends(get_current_user),
+#     db: Session = Depends(get_db)
+# ):
+    # """Creates a new empty chat session."""
+    # session = ChatSession(user_id=user_id, title="New Chat")
+    # db.add(session)
+    # db.commit()
+    # db.refresh(session)
+    # return {"session_id": session.id, "title": session.title}
 
 
-@app.get("/sessions")
-def list_sessions(
-    user_id: int = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Returns all chat sessions for the user, newest first."""
-    sessions = (
-        db.query(ChatSession)
-        .filter(ChatSession.user_id == user_id)
-        .order_by(ChatSession.created_at.desc())
-        .all()
-    )
-    return [{"id": s.id, "title": s.title, "created_at": str(s.created_at)} for s in sessions]
+# @app.get("/sessions")
+# def list_sessions(
+#     user_id: int = Depends(get_current_user),
+#     db: Session = Depends(get_db)
+# ):
+#     """Returns all chat sessions for the user, newest first."""
+#     sessions = (
+#         db.query(ChatSession)
+#         .filter(ChatSession.user_id == user_id)
+#         .order_by(ChatSession.created_at.desc())
+#         .all()
+#     )
+#     return [{"id": s.id, "title": s.title, "created_at": str(s.created_at)} for s in sessions]
 
 
-@app.get("/sessions/{session_id}/messages")
-def get_session_messages(
-    session_id: int,
-    user_id: int = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Returns all messages in a session."""
-    session = db.query(ChatSession).filter(
-        ChatSession.id == session_id,
-        ChatSession.user_id == user_id
-    ).first()
+# @app.get("/sessions/{session_id}/messages")
+# def get_session_messages(
+#     session_id: int,
+#     user_id: int = Depends(get_current_user),
+#     db: Session = Depends(get_db)
+# ):
+#     """Returns all messages in a session."""
+#     session = db.query(ChatSession).filter(
+#         ChatSession.id == session_id,
+#         ChatSession.user_id == user_id
+#     ).first()
 
-    if not session:
-        raise HTTPException(status_code=404, detail="Chat session not found.")
+#     if not session:
+#         raise HTTPException(status_code=404, detail="Chat session not found.")
 
-    messages = (
-        db.query(ChatMessage)
-        .filter(ChatMessage.session_id == session_id)
-        .order_by(ChatMessage.created_at.asc())
-        .all()
-    )
-    return [{"role": m.role, "content": m.content, "created_at": str(m.created_at)} for m in messages]
+#     messages = (
+#         db.query(ChatMessage)
+#         .filter(ChatMessage.session_id == session_id)
+#         .order_by(ChatMessage.created_at.asc())
+#         .all()
+#     )
+#     return [{"role": m.role, "content": m.content, "created_at": str(m.created_at)} for m in messages]
 
 
-@app.delete("/sessions/{session_id}")
-def delete_session(
-    session_id: int,
-    user_id: int = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Deletes a chat session and all its messages."""
-    session = db.query(ChatSession).filter(
-        ChatSession.id == session_id,
-        ChatSession.user_id == user_id
-    ).first()
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found.")
+# @app.delete("/sessions/{session_id}")
+# def delete_session(
+#     session_id: int,
+#     user_id: int = Depends(get_current_user),
+#     db: Session = Depends(get_db)
+# ):
+#     """Deletes a chat session and all its messages."""
+#     session = db.query(ChatSession).filter(
+#         ChatSession.id == session_id,
+#         ChatSession.user_id == user_id
+#     ).first()
+#     if not session:
+#         raise HTTPException(status_code=404, detail="Session not found.")
 
-    db.delete(session)
-    db.commit()
-    return {"message": "Chat deleted."}
+#     db.delete(session)
+#     db.commit()
+#     return {"message": "Chat deleted."}
 
 
 # ══════════════════════════════════════════════════════════════════════════════
